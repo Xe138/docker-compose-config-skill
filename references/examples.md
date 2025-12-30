@@ -42,7 +42,7 @@ services:
 
   redis:
     container_name: immich_redis
-    image: registry.redict.io/redict:7.3.6@sha256:2a99f322eed7...
+    image: registry.redict.io/redict:7.3.6
     restart: always
     volumes:
       - redis-data:/data
@@ -51,7 +51,7 @@ services:
 
   database:
     container_name: immich_postgres
-    image: ghcr.io/immich-app/postgres:16-vectorchord0.3.0@sha256:5b434f184ec...
+    image: ghcr.io/immich-app/postgres:16-vectorchord0.3.0
     environment:
       POSTGRES_PASSWORD: ${DB_PASSWORD}
       POSTGRES_USER: ${DB_USERNAME}
@@ -78,7 +78,7 @@ networks:
 ```yaml
 services:
   swag:
-    image: lscr.io/linuxserver/swag:5.2.2@sha256:c8afbd137c2f...
+    image: lscr.io/linuxserver/swag:5.2.2
     container_name: swag
     cap_add:
       - NET_ADMIN
@@ -116,7 +116,7 @@ networks:
 ```yaml
 services:
   jellyfin:
-    image: lscr.io/linuxserver/jellyfin:10.11.4@sha256:234ea8d508b2...
+    image: lscr.io/linuxserver/jellyfin:10.11.4
     container_name: jellyfin
     runtime: nvidia
     environment:
@@ -146,7 +146,7 @@ services:
 ```yaml
 services:
   deluge:
-    image: binhex/arch-delugevpn:latest@sha256:2ff474cba3af...
+    image: binhex/arch-delugevpn:2.1.2-2-01
     container_name: deluge
     cap_add:
       - NET_ADMIN
@@ -171,7 +171,7 @@ services:
 ```yaml
 services:
   database:
-    image: postgres:18.1@sha256:5ec39c188013...
+    image: postgres:18.1
     container_name: app-db
     restart: unless-stopped
     environment:

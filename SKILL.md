@@ -33,7 +33,7 @@ name: <project-name>
 services:
   <service-name>:
     container_name: <service_container>
-    image: <registry>/<image>:<version>@sha256:<digest>
+    image: <registry>/<image>:<version>
     environment:
       PUID: ${UID}
       PGID: ${GID}
@@ -57,10 +57,12 @@ networks:
 
 ### Key Patterns
 
-1. **Image pinning**: Use SHA256 digests for reproducibility
+1. **Image versioning**: Always use pinned version tags (never `latest`)
    ```yaml
-   image: ghcr.io/org/image:v1.0.0@sha256:abc123...
+   image: ghcr.io/org/image:v1.0.0
+   image: lscr.io/linuxserver/app:2.5.1
    ```
+   Note: SHA256 digests are managed automatically by Renovate bot and should not be added manually.
 
 2. **Port defaults**: Always provide defaults for ports
    ```yaml
