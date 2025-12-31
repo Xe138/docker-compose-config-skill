@@ -17,8 +17,11 @@ Each project follows this structure:
 │   ├── docker-compose.yml              # Main service definitions
 │   ├── docker-compose.override.yml     # Current host overrides (gitignored)
 │   ├── .env                            # Environment variables (gitignored)
+│   ├── .gitignore                      # Excludes /.env and /docker-compose.override.yml
+│   ├── env.example                     # Template for .env files
+│   ├── README.md                       # Setup and usage instructions
 │   └── environments/
-│       └── <hostname>/                 # Per-host configs
+│       └── <hostname>/                 # Per-host configs (committed, secrets scrubbed)
 │           ├── .env
 │           └── docker-compose.override.<hostname>.yml
 ```
@@ -154,6 +157,60 @@ When creating a new Docker Compose project:
 2. Copy existing host's `.env` as template
 3. Update paths and port mappings for the host
 4. Create override compose file if device mappings differ
+
+## Git Repository Management
+
+Each project should be version controlled with its own git repository.
+
+### .gitignore Configuration
+
+```gitignore
+# Root environment file (may contain active secrets)
+/.env
+
+# Docker compose override (host-specific, not committed)
+/docker-compose.override.yml
+```
+
+**Note**: Use `/.env` (with leading slash) to only exclude the root `.env` file. Environment files in `environments/<hostname>/` are committed after secret scrubbing.
+
+### Secret Scrubbing
+
+Before committing `environments/<hostname>/.env` files, replace secret values:
+
+| Secret Type | Original | Scrubbed |
+|-------------|----------|----------|
+| Passwords | `DB_PASSWORD=actual_password` | `DB_PASSWORD=CHANGE_ME_SECRET` |
+| API Keys | `API_KEY=sk-abc123...` | `API_KEY=CHANGE_ME_SECRET` |
+| Tokens | `AUTH_TOKEN=token_value` | `AUTH_TOKEN=CHANGE_ME_SECRET` |
+
+**Keep in version control** (non-secret, host-specific):
+- Paths: `DATA_LOCATION`, `UPLOAD_PATH`
+- Ports: `APP_PORT`, `DB_PORT`
+- UIDs/GIDs: `UID`, `GID`
+- URLs: `APP_URL`, `DB_HOSTNAME`
+- Names: `DB_DATABASE_NAME`, `DB_USERNAME`
+
+**Exclude or scrub**:
+- Passwords, API keys, tokens, secrets
+
+### Creating a Git Repository
+
+```bash
+# Initialize
+cd /docker/config/<project>
+git init && git branch -m main
+
+# Create remote on Gitea (using git-gitea skill)
+source ~/.claude/skills/git-gitea/scripts/gitea-helper.sh
+gitea_create_repo "docker-<project>" "Docker Compose configuration for <project>" true
+
+# Add remote, commit, push
+git remote add origin https://git.prettyhefty.com/Bill/docker-<project>.git
+git add -A
+git commit -m "Initial commit: <project> docker-compose configuration"
+git push -u origin main
+```
 
 ## Service Dependencies
 
