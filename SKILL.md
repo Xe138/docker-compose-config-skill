@@ -136,6 +136,18 @@ docker compose -f <project>/docker-compose.yml logs -f
 docker compose -f <project>/docker-compose.yml down
 ```
 
+## Creating a New Project
+
+When creating a new Docker Compose project:
+
+1. Create the project directory structure
+2. Create `docker-compose.yml` with service definitions
+3. Create `env.example` as a template
+4. Create environment config **only for the current host** (`environments/<current-hostname>/.env`)
+5. Optionally create a `README.md` with first-run instructions
+
+**Important**: Only create the environment for the current host unless explicitly asked to create configurations for other hosts.
+
 ## Adding a New Host Environment
 
 1. Create `environments/<hostname>/` directory
