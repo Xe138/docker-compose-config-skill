@@ -158,33 +158,39 @@ Private keys stay at `~/.config/sops/age/keys.txt` (never committed).
 ```yaml
 creation_rules:
   - path_regex: env\.sops\.yaml$
-    unencrypted_regex: "_unencrypted$"
+    encrypted_regex: "^(DB_PASSWORD|API_KEY|SECRET_.*|.*_SECRET|.*_PASSWORD|.*_TOKEN)$"
     age: >-
       age1abc...,age1def...
 ```
 
-Get recipient keys from `~/repos/sops-age-keys/recipients/*.pub`.
+- `encrypted_regex` specifies which keys to encrypt (only secrets)
+- Get recipient keys from `~/repos/sops-age-keys/recipients/*.pub`
+- Comments and non-matching keys remain unencrypted
 
 ### env.sops.yaml Format
 
-Non-secret values use `_unencrypted` suffix (remain readable in git):
+Use normal variable names. Only keys matching `encrypted_regex` are encrypted:
 
 ```yaml
-# Non-secrets (readable in git)
-UID_unencrypted: "1000"
-GID_unencrypted: "1000"
-UPLOAD_LOCATION_unencrypted: "/mnt/user/pictures"
-DB_DATA_LOCATION_unencrypted: "/mnt/user/appdata/immich"
-APP_PORT_unencrypted: "2283"
-DB_HOSTNAME_unencrypted: "database"
-DB_USERNAME_unencrypted: "postgres"
-DB_DATABASE_NAME_unencrypted: "immich"
+# Permissions
+UID: "1000"
+GID: "1000"
 
-# Secrets (encrypted by SOPS)
-DB_PASSWORD: "actual_secret_value"
+# Paths
+UPLOAD_LOCATION: /mnt/user/pictures
+DB_DATA_LOCATION: /mnt/user/appdata/immich
+
+# Ports
+APP_PORT: "2283"
+
+# Database
+DB_HOSTNAME: database
+DB_USERNAME: postgres
+DB_DATABASE_NAME: immich
+DB_PASSWORD: secret_value_here
 ```
 
-After encryption, only `DB_PASSWORD` value is encrypted; `_unencrypted` values remain readable.
+After encryption, only `DB_PASSWORD` is encrypted; comments and other values remain readable.
 
 ### Makefile Targets
 
@@ -193,7 +199,7 @@ SOURCE ?= env.sops.yaml
 TARGET ?= .env
 
 decrypt:
-	@sops decrypt --output-type dotenv $(SOURCE) | sed 's/_unencrypted=/=/g' > $(TARGET)
+	@sops decrypt --output-type dotenv --output $(TARGET) $(SOURCE)
 	@echo "Decrypted $(SOURCE) -> $(TARGET)"
 
 encrypt:
