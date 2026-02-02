@@ -92,6 +92,52 @@ networks:
        attachable: true
    ```
 
+## Environment Variable Isolation
+
+**Never use `env_file` directives in service definitions.** Each service should only receive the specific environment variables it needs.
+
+### Why
+- **Security**: Prevents secrets meant for one service from leaking to others
+- **Clarity**: Makes explicit which variables each service requires
+- **Debugging**: Easier to trace environment-related issues
+
+### Correct Pattern
+```yaml
+services:
+  app:
+    environment:
+      - DATABASE_URL=postgres://${DB_USER}:${DB_PASS}@db:5432/${DB_NAME}
+      - APP_SECRET=${APP_SECRET}
+    # NO env_file directive
+
+  database:
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASS}
+      POSTGRES_DB: ${DB_NAME}
+    # NO env_file directive
+```
+
+### Incorrect Pattern
+```yaml
+services:
+  app:
+    env_file:
+      - .env  # BAD: passes ALL variables to container
+    environment:
+      - EXTRA_VAR=value
+
+  database:
+    env_file:
+      - .env  # BAD: database receives app secrets, TURN secrets, etc.
+```
+
+### How .env Files Work
+The `.env` file serves **compose-time interpolation only**:
+- Variables like `${DATA_PATH}` in volumes are substituted when `docker compose` parses the file
+- This happens at compose parse time, NOT at container runtime
+- The container only receives variables explicitly listed in `environment:`
+
 ## Environment File Conventions
 
 ### Structure (.env)
