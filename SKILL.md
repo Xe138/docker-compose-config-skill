@@ -157,12 +157,12 @@ Private keys stay at `~/.config/sops/age/keys.txt` (never committed).
 
 ```yaml
 creation_rules:
-  - path_regex: env\.sops\.yaml$
-    encrypted_regex: "^(DB_PASSWORD|API_KEY|SECRET_.*|.*_SECRET|.*_PASSWORD|.*_TOKEN)$"
-    age: >-
-      age1abc...,age1def...
+  - path_regex: ".*"
+    encrypted_regex: "^(.*PASSWORD.*|.*SECRET.*|.*KEY.*|.*PASS.*)$"
+    age: age1abc...
 ```
 
+- `path_regex: ".*"` matches any file to avoid "no matching creation rules" errors
 - `encrypted_regex` specifies which keys to encrypt (only secrets)
 - Get recipient keys from `~/repos/sops-age-keys/recipients/*.pub`
 - Comments and non-matching keys remain unencrypted
@@ -195,39 +195,48 @@ After encryption, only `DB_PASSWORD` is encrypted; comments and other values rem
 ### Makefile Targets
 
 ```makefile
-SOURCE ?= env.sops.yaml
-TARGET ?= .env
-
 decrypt:
-	@sops decrypt --output-type dotenv --output $(TARGET) $(SOURCE)
-	@echo "Decrypted $(SOURCE) -> $(TARGET)"
+	@sops decrypt --input-type dotenv --output-type dotenv --output .env env.sops.yaml
+	@echo "Decrypted env.sops.yaml -> .env"
 
 encrypt:
-	@sops encrypt --input-type dotenv --output $(SOURCE) $(TARGET)
-	@echo "Encrypted $(TARGET) -> $(SOURCE)"
+	@sops encrypt --input-type dotenv --output env.sops.yaml .env
+	@echo "Encrypted .env -> env.sops.yaml"
+
+edit:
+	@sops --input-type dotenv --output-type dotenv env.sops.yaml
 
 clean:
-	@rm -f $(TARGET)
-	@echo "Removed $(TARGET)"
+	@rm -f .env
+	@echo "Removed .env"
 ```
 
 ### Common SOPS Commands
 
 ```bash
-# Decrypt to .env (for Docker Compose)
-make decrypt SOURCE=environments/<host>/env.sops.yaml TARGET=environments/<host>/.env
+# Copy encrypted file from environment to project root
+cp environments/<host>/env.sops.yaml env.sops.yaml
+
+# Decrypt to .env for editing
+make decrypt
+
+# Edit the .env file
+nano .env
+
+# Re-encrypt after changes
+make encrypt
+
+# Copy back to environment
+cp env.sops.yaml environments/<host>/env.sops.yaml
+
+# Clean up
+make clean
 
 # Edit secrets directly (decrypts in editor, re-encrypts on save)
-sops environments/<host>/env.sops.yaml
-
-# Encrypt after editing .env
-make encrypt SOURCE=environments/<host>/env.sops.yaml TARGET=environments/<host>/.env
+make edit
 
 # Add new host to recipients (after adding to .sops.yaml)
-sops updatekeys environments/<host>/env.sops.yaml
-
-# Clean up decrypted file
-make clean TARGET=environments/<host>/.env
+sops updatekeys env.sops.yaml
 ```
 
 ### Starting Services with SOPS
@@ -235,16 +244,16 @@ make clean TARGET=environments/<host>/.env
 ```bash
 cd /docker/config/<project>
 
-# Decrypt secrets
-make decrypt SOURCE=environments/<host>/env.sops.yaml TARGET=environments/<host>/.env
+# Copy and decrypt secrets to project root
+cp environments/<host>/env.sops.yaml env.sops.yaml
+make decrypt
 
 # Start services
-docker compose --env-file environments/<host>/.env \
-  -f docker-compose.yml \
+docker compose -f docker-compose.yml \
   -f environments/<host>/docker-compose.override.<host>.yml up -d
 
-# Clean up (optional, secrets stay decrypted for restarts)
-make clean TARGET=environments/<host>/.env
+# Clean up (optional)
+make clean && rm env.sops.yaml
 ```
 
 ### Migrating Existing Projects
