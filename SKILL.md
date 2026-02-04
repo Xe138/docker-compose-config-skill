@@ -255,15 +255,27 @@ Private keys stay at `~/.config/sops/age/keys.txt` (never committed).
 
 ```yaml
 creation_rules:
-  - path_regex: ".*"
-    encrypted_regex: "^(.*PASSWORD.*|.*SECRET.*|.*KEY.*|.*PASS.*)$"
+  - path_regex: .*\.env$|.*env\.sops\.yaml$
+    encrypted_regex: "^(.*_PASSWORD.*|.*_SECRET.*|.*_TOKEN.*|.*_KEY.*|SECRET_.*)$"
     age: age1abc...
 ```
 
-- `path_regex: ".*"` matches any file to avoid "no matching creation rules" errors
-- `encrypted_regex` specifies which keys to encrypt (only secrets)
+**Configuration notes:**
+
+- **`path_regex`**: Must match the INPUT file when encrypting. The pattern `.*\.env$|.*env\.sops\.yaml$` matches both `.env` files (input) and `env.sops.yaml` files (output/edit).
+- **`encrypted_regex`**: Specifies which keys to encrypt. Uses `.*_TOKEN.*` (not `.*_TOKEN$`) to match fields CONTAINING `_TOKEN` like `PVE_TOKEN_VALUE`.
 - Get recipient keys from `~/repos/sops-age-keys/recipients/*.pub`
 - Comments and non-matching keys remain unencrypted
+
+**Common field patterns matched by encrypted_regex:**
+
+| Pattern | Matches |
+|---------|---------|
+| `.*_PASSWORD.*` | `DB_PASSWORD`, `ADMIN_PASSWORD_HASH` |
+| `.*_SECRET.*` | `APP_SECRET`, `JWT_SECRET_KEY`, `SECRET_VALUE` |
+| `.*_TOKEN.*` | `API_TOKEN`, `PVE_TOKEN_VALUE`, `AUTH_TOKEN_SECRET` |
+| `.*_KEY.*` | `API_KEY`, `ENCRYPTION_KEY`, `SSH_KEY_PATH` |
+| `SECRET_.*` | `SECRET_KEY`, `SECRET_TOKEN` |
 
 ### env.sops.yaml Format
 
@@ -293,21 +305,27 @@ After encryption, only `DB_PASSWORD` is encrypted; comments and other values rem
 ### Makefile Targets
 
 ```makefile
+# Default paths (can be overridden: make encrypt SOURCE=env.sops.yaml TARGET=.env)
+SOURCE ?= env.sops.yaml
+TARGET ?= .env
+
 decrypt:
-	@sops decrypt --input-type dotenv --output-type dotenv --output .env env.sops.yaml
-	@echo "Decrypted env.sops.yaml -> .env"
+	@sops decrypt --input-type yaml --output-type dotenv --output $(TARGET) $(SOURCE)
+	@echo "Decrypted $(SOURCE) -> $(TARGET)"
 
 encrypt:
-	@sops encrypt --input-type dotenv --output env.sops.yaml .env
-	@echo "Encrypted .env -> env.sops.yaml"
+	@sops encrypt --input-type dotenv --output-type yaml --output $(SOURCE) $(TARGET)
+	@echo "Encrypted $(TARGET) -> $(SOURCE)"
 
 edit:
-	@sops --input-type dotenv --output-type dotenv env.sops.yaml
+	@sops $(SOURCE)
 
 clean:
 	@rm -f .env
 	@echo "Removed .env"
 ```
+
+**Important**: Use `--output-type yaml` for encryption to produce readable YAML files. Use `--output-type dotenv` for decryption to produce shell-compatible `.env` files.
 
 ### Common SOPS Commands
 
@@ -352,6 +370,52 @@ docker compose -f docker-compose.yml \
 
 # Clean up (optional)
 make clean && rm env.sops.yaml
+```
+
+### SOPS Troubleshooting
+
+**"no matching creation rules found"**
+
+This error occurs when `path_regex` doesn't match the INPUT file path. SOPS matches against the file being read, not the output file.
+
+```bash
+# This fails if path_regex only matches *.sops.yaml
+sops encrypt --input-type dotenv --output env.sops.yaml .env
+# SOPS tries to match ".env" against path_regex, not "env.sops.yaml"
+```
+
+**Solution**: Use a path_regex that matches both input and output files:
+```yaml
+path_regex: .*\.env$|.*env\.sops\.yaml$
+```
+
+**Fields not being encrypted**
+
+If secrets aren't being encrypted, check that `encrypted_regex` matches the field names. Common issues:
+
+| Field | Pattern needed | Why |
+|-------|---------------|-----|
+| `PVE_TOKEN_VALUE` | `.*_TOKEN.*` | Contains `_TOKEN`, doesn't end with it |
+| `API_KEY_ID` | `.*_KEY.*` | Contains `_KEY` in middle |
+| `PASSWORD_HASH` | `.*PASSWORD.*` | `PASSWORD` in middle of name |
+
+**Wrong output format**
+
+If `env.sops.yaml` contains dotenv format instead of YAML:
+```bash
+# Wrong - produces dotenv format
+sops encrypt --input-type dotenv --output env.sops.yaml .env
+
+# Correct - produces YAML format
+sops encrypt --input-type dotenv --output-type yaml --output env.sops.yaml .env
+```
+
+**Decryption produces wrong format**
+
+If `.env` contains YAML instead of dotenv format:
+```bash
+# Correct - produces dotenv format for shell compatibility
+sops decrypt --input-type yaml --output-type dotenv --output .env env.sops.yaml
 ```
 
 ### Migrating Existing Projects
