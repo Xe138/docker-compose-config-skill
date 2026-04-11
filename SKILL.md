@@ -323,6 +323,48 @@ docker compose -f <project>/docker-compose.yml logs -f
 docker compose -f <project>/docker-compose.yml down
 ```
 
+## Deploying Updates from Merged PRs
+
+After merging PRs that update image versions (e.g., Renovate bot PRs), deploy the changes to the target host. To review and merge Renovate PRs, use the gitea skill's PR management functions (`gitea_list_renovate_prs`, `gitea_merge_pr`).
+
+### Pull and Redeploy a Stack
+
+```bash
+# On the target host, pull latest config and redeploy
+ssh bill@<host> "cd /docker/config/<stack-name> && git pull origin main"
+
+# Pull new images and restart
+ssh bill@<host> "cd /docker/config/<stack-name> && \
+  docker compose pull && \
+  docker compose up -d"
+
+# For stacks with host-specific overrides:
+ssh bill@<host> "cd /docker/config/<stack-name> && \
+  docker compose -f docker-compose.yml \
+  -f environments/<host>/docker-compose.override.<host>.yml \
+  pull && \
+  docker compose -f docker-compose.yml \
+  -f environments/<host>/docker-compose.override.<host>.yml \
+  up -d"
+```
+
+### Verify Deployment
+
+```bash
+# Check container is running with new image
+ssh bill@<host> "docker ps --filter name=<container> --format '{{.Image}} {{.Status}}'"
+
+# Check logs for startup errors
+ssh bill@<host> "docker logs --tail 20 <container>"
+```
+
+### Host Reference
+
+| Host | SSH | Stack Path |
+|------|-----|------------|
+| inkling | `bill@inkling` | `/docker/config/<stack>/` |
+| shellington | `bill@shellington` | `/docker/config/<stack>/` |
+
 ## Creating a New Project
 
 When creating a new Docker Compose project:
