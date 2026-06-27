@@ -26,6 +26,58 @@ Each project follows this structure:
 │           └── docker-compose.override.<hostname>.yml
 ```
 
+## Appdata Storage: One ZFS Dataset Per Stack (REQUIRED)
+
+On ZFS-backed hosts (**inkling**, **shellington** — their `/docker/appdata` is a ZFS dataset), **every stack gets its own ZFS dataset** at `docker/appdata/<stack>`. Create it **before first boot**, then bind-mount subpaths of it into containers.
+
+**Why:** each dataset is an independent snapshot/rollback/replication boundary. You can `zfs rollback`, restore, clone, or replicate **one stack without touching any other**. Plain subdirectories of the parent `docker/appdata` share a single snapshot timeline — you cannot roll back or restore one stack's data without rolling back **every** service's appdata at once. A per-stack dataset is what makes "restore just this app to last night" possible.
+
+```bash
+# REQUIRED first storage step for a new stack on a ZFS appdata host:
+sudo zfs create docker/appdata/<stack>
+
+# then create whatever subdirs the containers bind-mount, INSIDE the dataset:
+sudo mkdir -p /docker/appdata/<stack>/{db,uploads}
+```
+
+The new dataset is backed up automatically: sanoid on `[docker/appdata]` is `recursive=true` (snapshots every child), and the `syncoid -r` replication to dipper picks up child datasets — **no backup-config change needed**.
+
+**Verify** the data path is backed by the child dataset (not silently shadowing the parent):
+
+```bash
+df -T /docker/appdata/<stack>
+# FSTYPE must be `zfs` and Filesystem must read `docker/appdata/<stack>` (not `docker/appdata`)
+```
+
+### Do NOT plain-`mkdir` an appdata dir on a ZFS host
+
+A bare `mkdir /docker/appdata/<stack>` silently forfeits per-stack restore. These are **not** valid reasons to skip the dataset:
+
+| Rationalization | Reality |
+|-----------------|---------|
+| "It matches the other ~70 containers / follows convention" | Several existing stacks are plain dirs by accident — they're migration candidates, not a pattern to copy. This rule *is* the convention now. |
+| "The parent `docker/appdata` is already snapshotted" | Parent snapshots can't be rolled back per-stack — restoring one app would revert all of them. That defeats the entire purpose. |
+| "A dataset adds one to the sanoid policy / more complexity" | Zero policy change: `recursive=true` already covers it. One `zfs create` is the whole cost. |
+| "The examples use `/mnt/user/appdata` as plain dirs" | Those are **Unraid** (non-ZFS) examples — see the fallback below. They do not apply to ZFS hosts. |
+
+If you catch yourself about to `mkdir` a top-level appdata dir on inkling/shellington, **stop and `zfs create` instead.**
+
+### Non-ZFS appdata hosts (fallback)
+
+If the host's appdata filesystem is **not** ZFS (e.g. Unraid `/mnt/user/appdata`), there is no dataset to create — `mkdir -p` the appdata dir as the examples show. Detect which case you're in:
+
+```bash
+df -T <appdata-root>   # e.g. df -T /docker/appdata  →  zfs ⇒ dataset required;  anything else ⇒ plain dir
+```
+
+### Optional: tune the database subtree
+
+For a stack with a real database, a dedicated child dataset with `recordsize=16k` matches Postgres/MySQL page I/O (a real win vs. the 128k default):
+
+```bash
+sudo zfs create -o recordsize=16k docker/appdata/<stack>/db
+```
+
 ## Compose File Conventions
 
 ### Service Definition Pattern
@@ -369,11 +421,12 @@ ssh bill@<host> "docker logs --tail 20 <container>"
 
 When creating a new Docker Compose project:
 
-1. Create the project directory structure
-2. Create `docker-compose.yml` with service definitions
-3. Create `env.example` as a template
-4. Create environment config **only for the current host** (`environments/<current-hostname>/.env`)
-5. Optionally create a `README.md` with first-run instructions
+1. **Provision storage:** on a ZFS appdata host, `sudo zfs create docker/appdata/<stack>` (see [Appdata Storage: One ZFS Dataset Per Stack](#appdata-storage-one-zfs-dataset-per-stack-required)), then `mkdir` the bind-mount subdirs inside it. On a non-ZFS host, `mkdir -p` the appdata dir.
+2. Create the project directory structure under `/docker/config/<stack>/`
+3. Create `docker-compose.yml` with service definitions (appdata bind mounts point at paths inside the dataset)
+4. Create `env.example` as a template
+5. Create environment config **only for the current host** (`environments/<current-hostname>/.env`)
+6. Optionally create a `README.md` with first-run instructions
 
 **Important**: Only create the environment for the current host unless explicitly asked to create configurations for other hosts.
 
