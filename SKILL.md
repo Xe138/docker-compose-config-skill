@@ -241,30 +241,67 @@ Projects use SOPS with age encryption to securely commit secrets to git. This re
         └── .env                    # (gitignored, generated)
 ```
 
-### Key Repository
+### Recipients: the multi-recipient standard (REQUIRED)
 
-Public keys are managed centrally at `~/repos/sops-age-keys/`:
-- `recipients/*.pub` - Public keys for each host
-- `scripts/init-host.sh` - Generate key for new host
-- `scripts/add-recipient.sh` - Add host's public key
-- `templates/Makefile` - Makefile template for projects
+**Never encrypt a stack to a single age key.** A one-recipient file is one lost key
+away from being permanently undecryptable — that is exactly how the old `admin` key
+(`age1nfeydj2…`, held only in inkling's mutable `keys.txt`) became a fleet-wide
+single point of failure. Every stack MUST encrypt to, at minimum:
 
-Private keys stay at `~/.config/sops/age/keys.txt` (never committed).
+- **`bill`** — Bill's user key (recovery from his desktop): always a decryption path.
+- **the owning host key(s)** — the SSH-host-key-derived age recipient of every host
+  that deploys the stack, so each host self-decrypts with its own key.
+- **one recovery host** — a second host key (`inkling`, or `shellington` for
+  inkling-hosted stacks) so no single host loss orphans the secret.
+
+Canonical age recipients (SSH-host-key-derived unless noted):
+
+| Alias | age recipient |
+|-------|---------------|
+| `bill` (user, recovery) | `age1usp4weqdyygssa9l9d063wv8gahy6t8zctr9gpzxdunfav57h3cqcaewj4` |
+| `inkling` | `age19hy45afa73e6m8ltjz36qd0hpp2ekmd0kg72etr5deaydp845azqr92pem` |
+| `shellington` | `age1fcmjersjwuqecz9n58qf8n3pk46r7439fgzhdtjw5z9zq40sjygqfc5cz8` |
+| `tweak` | `age1l4qj6cf2cn469hr3fa743glnlzr9gk53j3l3az5muchsaepmnqhspuhe7m` |
+| `soos` | `age1g3vhtpfptz3klwvvw3qwyejg50neeqf0ac8lndvu0pdfv7wfqv8s3njelv` |
+
+A host's own recipient comes from its SSH host key:
+`ssh-to-age -i /etc/ssh/ssh_host_ed25519_key.pub`. For a host to decrypt with that
+key via the `sops` CLI, its `~/.config/sops/age/keys.txt` must be the age identity
+converted from the SSH host **private** key
+(`sudo ssh-to-age -private-key -i /etc/ssh/ssh_host_ed25519_key`), not a hand-rolled
+key. This aligns the docker workflow with the NixOS `sops-nix` model and lets the
+single `admin` key be retired.
+
+Public keys are mirrored at `~/repos/sops-age-keys/recipients/*.pub` — keep that repo
+present and in sync on soos, inkling, shellington, and tweak (it currently exists
+only on inkling). Private keys stay at `~/.config/sops/age/keys.txt` (never committed).
 
 ### .sops.yaml Configuration
 
+Name recipients with anchors and list the multi-recipient set (never a bare single
+`age:` key):
+
 ```yaml
+keys:
+  - &bill        age1usp4weqdyygssa9l9d063wv8gahy6t8zctr9gpzxdunfav57h3cqcaewj4
+  - &inkling     age19hy45afa73e6m8ltjz36qd0hpp2ekmd0kg72etr5deaydp845azqr92pem
+  - &shellington age1fcmjersjwuqecz9n58qf8n3pk46r7439fgzhdtjw5z9zq40sjygqfc5cz8
+
 creation_rules:
   - path_regex: .*\.env$|.*env\.sops\.yaml$
     encrypted_regex: "^(.*_PASSWORD.*|.*_SECRET.*|.*_TOKEN.*|.*_KEY.*|SECRET_.*)$"
-    age: age1abc...
+    key_groups:
+      - age: [*bill, *inkling, *shellington]
 ```
+
+After changing recipients, re-encrypt every existing file with
+`sops updatekeys <file>`, run on a host that still holds a current recipient key.
 
 **Configuration notes:**
 
 - **`path_regex`**: Must match the INPUT file when encrypting. The pattern `.*\.env$|.*env\.sops\.yaml$` matches both `.env` files (input) and `env.sops.yaml` files (output/edit).
 - **`encrypted_regex`**: Specifies which keys to encrypt. Uses `.*_TOKEN.*` (not `.*_TOKEN$`) to match fields CONTAINING `_TOKEN` like `PVE_TOKEN_VALUE`.
-- Get recipient keys from `~/repos/sops-age-keys/recipients/*.pub`
+- Recipients MUST be the multi-recipient set above (bill + owning host(s) + recovery), never a single `age:` key; mirror pubkeys at `~/repos/sops-age-keys/recipients/*.pub`
 - Comments and non-matching keys remain unencrypted
 
 **Common field patterns matched by encrypted_regex:**
