@@ -258,7 +258,7 @@ Canonical age recipients (SSH-host-key-derived unless noted):
 
 | Alias | age recipient |
 |-------|---------------|
-| `bill` (user, recovery) | `age1usp4weqdyygssa9l9d063wv8gahy6t8zctr9gpzxdunfav57h3cqcaewj4` |
+| `bill` (user, recovery) | `age1ethpglzfashs0824tcg3cvuzcrucg66xgx25f9amlqdm6wh5qemq3ws8ac` |
 | `inkling` | `age19hy45afa73e6m8ltjz36qd0hpp2ekmd0kg72etr5deaydp845azqr92pem` |
 | `shellington` | `age1fcmjersjwuqecz9n58qf8n3pk46r7439fgzhdtjw5z9zq40sjygqfc5cz8` |
 | `tweak` | `age1l4qj6cf2cn469hr3fa743glnlzr9gk53j3l3az5muchsaepmnqhspuhe7m` |
@@ -283,7 +283,7 @@ Name recipients with anchors and list the multi-recipient set (never a bare sing
 
 ```yaml
 keys:
-  - &bill        age1usp4weqdyygssa9l9d063wv8gahy6t8zctr9gpzxdunfav57h3cqcaewj4
+  - &bill        age1ethpglzfashs0824tcg3cvuzcrucg66xgx25f9amlqdm6wh5qemq3ws8ac
   - &inkling     age19hy45afa73e6m8ltjz36qd0hpp2ekmd0kg72etr5deaydp845azqr92pem
   - &shellington age1fcmjersjwuqecz9n58qf8n3pk46r7439fgzhdtjw5z9zq40sjygqfc5cz8
 
