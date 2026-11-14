@@ -565,7 +565,7 @@ cd /docker/config/<project>
 git init && git branch -m main
 
 # Create remote on Gitea (using git-gitea skill)
-source ~/.claude/skills/git-gitea/scripts/gitea-helper.sh
+source ~/.omp/agent/skills/claude-skill-git-gitea/scripts/gitea-helper.sh
 gitea_create_repo "docker-<project>" "Docker Compose configuration for <project>" true
 
 # Add remote, commit, push
